@@ -18,47 +18,44 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
-	"pscan/scan"
-
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra/doc"
 )
 
-// addCmd represents the add command
-var addCmd = &cobra.Command{
-	Use:          "add <host1>... <hostN>",
-	Aliases:      []string{"a"},
-	Short:        "Add new hosts to the list",
-	Long:         `Add new hosts to the list.`,
-	SilenceUsage: true,
-	Args:         cobra.MinimumNArgs(1),
+// docsCmd represents the docs command
+var docsCmd = &cobra.Command{
+	Use:   "docs",
+	Short: "Generate documentation for your command",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		hostsFile := viper.GetString("hosts-file")
+		dir, err := cmd.Flags().GetString("dir")
+		if err != nil {
+			return err
+		}
 
-		return addAction(os.Stdout, hostsFile, args)
+		if dir == "" {
+			if dir, err = ioutil.TempDir("", "pscan-docs"); err != nil {
+				return err
+			}
+		}
+
+		return docsAction(os.Stdout, dir)
 	},
 }
 
 func init() {
-	hostsCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(docsCmd)
+
+	docsCmd.Flags().StringP("dir", "d", "", "Directory to store the generated documentation")
 }
 
-func addAction(out io.Writer, hostsFile string, args []string) error {
-	hl := &scan.HostsList{}
-
-	if err := hl.Load(hostsFile); err != nil {
+func docsAction(out io.Writer, dir string) error {
+	if err := doc.GenMarkdownTree(rootCmd, dir); err != nil {
 		return err
 	}
 
-	for _, h := range args {
-		if err := hl.Add(h); err != nil {
-			return err
-		}
-
-		fmt.Fprintln(out, h)
-	}
-
-	return hl.Save(hostsFile)
+	fmt.Fprintf(out, "Documentation generated in %s\n", dir)
+	return nil
 }
